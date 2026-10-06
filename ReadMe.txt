@@ -1,6 +1,3 @@
-uvicorn app.main:app --reload
-
-
 blog-management-api/
 │
 ├── main.py
@@ -8,13 +5,34 @@ blog-management-api/
 ├── models.py
 ├── schemas.py
 ├── auth.py
+├── settings.py              
+├── .env                     
+├── .gitignore               
 │
 ├── routers/
 │   ├── auth.py
 │   └── posts.py
+│
+├── services/                
+│   ├── __init__.py
+│   ├── email_service.py
+│   └── notification_service.py
 │
 ├── media/
 │   └── posts/
 │
 ├── blog.db
 └── requirements.txt
+
+
+
+pip install pydantic-settings
+
+
+uvicorn app.main:app --reload
+
+
+
+
+
+

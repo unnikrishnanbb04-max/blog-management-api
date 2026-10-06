@@ -1,0 +1,40 @@
+# Environment variables
+.env
+
+# Virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+
+# Python distribution
+build/
+dist/
+*.egg-info/
+
+# Test/cache
+.pytest_cache/
+.coverage
+
+# Uploaded media
+media/posts/*
+
+# Database
+# Uncomment this if you don't want to push your local database
+# blog.db

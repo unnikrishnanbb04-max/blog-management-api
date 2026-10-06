@@ -6,3 +6,5 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 email-validator
+venv\Scripts\activatemain
+uvicorn main:app --reload

@@ -173,6 +173,10 @@ class Like(Base):
         ForeignKey("users.id"),
         nullable=False
     )
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
 
     post = relationship(
         "Post",

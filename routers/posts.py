@@ -8,7 +8,8 @@ from fastapi import (
     HTTPException,
     UploadFile,
     File,
-    Form
+    Form,
+    BackgroundTasks
 )
 
 from sqlalchemy import or_
@@ -33,6 +34,8 @@ from schemas import (
 )
 
 from auth import get_current_user
+
+from services.notification_service import notify_post_owner
 
 
 router = APIRouter(
@@ -61,7 +64,6 @@ def save_image(image: UploadFile) -> str:
         original_name
     )[1].lower()
 
-
     allowed_extensions = {
         ".jpg",
         ".jpeg",
@@ -70,7 +72,6 @@ def save_image(image: UploadFile) -> str:
         ".webp"
     }
 
-
     if extension not in allowed_extensions:
 
         raise HTTPException(
@@ -78,18 +79,15 @@ def save_image(image: UploadFile) -> str:
             detail="Only JPG, JPEG, PNG, GIF and WEBP images are allowed"
         )
 
-
     filename = (
         f"{uuid.uuid4()}"
         f"{extension}"
     )
 
-
     file_path = os.path.join(
         MEDIA_DIRECTORY,
         filename
     )
-
 
     with open(
         file_path,
@@ -98,13 +96,14 @@ def save_image(image: UploadFile) -> str:
 
         while True:
 
-            chunk = image.file.read(1024 * 1024)
+            chunk = image.file.read(
+                1024 * 1024
+            )
 
             if not chunk:
                 break
 
             buffer.write(chunk)
-
 
     return f"/media/posts/{filename}"
 
@@ -128,12 +127,12 @@ def create_post(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
 
     title = title.strip()
 
     content = content.strip()
-
 
     if not title:
 
@@ -142,7 +141,6 @@ def create_post(
             detail="Title cannot be empty"
         )
 
-
     if not content:
 
         raise HTTPException(
@@ -150,14 +148,11 @@ def create_post(
             detail="Content cannot be empty"
         )
 
-
     image_path = None
-
 
     if image:
 
         image_path = save_image(image)
-
 
     new_post = Post(
 
@@ -168,15 +163,14 @@ def create_post(
         image=image_path,
 
         author_id=current_user.id
-    )
 
+    )
 
     db.add(new_post)
 
     db.commit()
 
     db.refresh(new_post)
-
 
     return new_post
 
@@ -198,6 +192,7 @@ def get_posts(
     search: str | None = None,
 
     db: Session = Depends(get_db)
+
 ):
 
     if page < 1:
@@ -207,14 +202,12 @@ def get_posts(
             detail="Page must be greater than 0"
         )
 
-
     if limit < 1:
 
         raise HTTPException(
             status_code=400,
             detail="Limit must be greater than 0"
         )
-
 
     if limit > 100:
 
@@ -223,16 +216,13 @@ def get_posts(
             detail="Limit cannot exceed 100"
         )
 
-
     query = db.query(Post)
-
 
     # SEARCH
 
     if search:
 
         search = search.strip()
-
 
         if search:
 
@@ -252,25 +242,23 @@ def get_posts(
 
             )
 
-
     # TOTAL COUNT
 
     total = query.count()
 
-
     # TOTAL PAGES
 
-    total_pages = math.ceil(
-        total / limit
-    ) if total > 0 else 0
-
+    total_pages = (
+        math.ceil(total / limit)
+        if total > 0
+        else 0
+    )
 
     # PAGINATION
 
     offset = (
         page - 1
     ) * limit
-
 
     posts = (
 
@@ -287,7 +275,6 @@ def get_posts(
         .all()
 
     )
-
 
     return {
 
@@ -317,12 +304,12 @@ def get_post(
     post_id: int,
 
     db: Session = Depends(get_db)
+
 ):
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -330,7 +317,6 @@ def get_post(
             status_code=404,
             detail="Post not found"
         )
-
 
     return post
 
@@ -356,12 +342,12 @@ def update_post(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -370,9 +356,6 @@ def update_post(
             detail="Post not found"
         )
 
-
-    # OWNERSHIP CHECK
-
     if post.author_id != current_user.id:
 
         raise HTTPException(
@@ -380,11 +363,9 @@ def update_post(
             detail="You can only update your own post"
         )
 
-
     title = title.strip()
 
     content = content.strip()
-
 
     if not title:
 
@@ -393,7 +374,6 @@ def update_post(
             detail="Title cannot be empty"
         )
 
-
     if not content:
 
         raise HTTPException(
@@ -401,21 +381,17 @@ def update_post(
             detail="Content cannot be empty"
         )
 
-
     post.title = title
 
     post.content = content
-
 
     if image:
 
         post.image = save_image(image)
 
-
     db.commit()
 
     db.refresh(post)
-
 
     return post
 
@@ -434,12 +410,12 @@ def delete_post(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -448,9 +424,6 @@ def delete_post(
             detail="Post not found"
         )
 
-
-    # OWNERSHIP CHECK
-
     if post.author_id != current_user.id:
 
         raise HTTPException(
@@ -458,11 +431,9 @@ def delete_post(
             detail="You can only delete your own post"
         )
 
-
     db.delete(post)
 
     db.commit()
-
 
     return {
         "message": "Post deleted successfully"
@@ -482,6 +453,7 @@ def get_my_posts(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
 
     posts = db.query(Post).filter(
@@ -490,12 +462,11 @@ def get_my_posts(
         Post.created_at.desc()
     ).all()
 
-
     return posts
 
 
 # ============================================================
-# ADD COMMENT
+# ADD COMMENT + EMAIL NOTIFICATION
 # ============================================================
 
 @router.post(
@@ -508,15 +479,21 @@ def add_comment(
 
     comment_data: CommentCreate,
 
+    background_tasks: BackgroundTasks,
+
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
+
+    # --------------------------------------------------------
+    # FIND POST
+    # --------------------------------------------------------
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -526,8 +503,11 @@ def add_comment(
         )
 
 
-    text = comment_data.text.strip()
+    # --------------------------------------------------------
+    # VALIDATE COMMENT
+    # --------------------------------------------------------
 
+    text = comment_data.text.strip()
 
     if not text:
 
@@ -537,6 +517,10 @@ def add_comment(
         )
 
 
+    # --------------------------------------------------------
+    # CREATE COMMENT
+    # --------------------------------------------------------
+
     comment = Comment(
 
         post_id=post_id,
@@ -544,8 +528,8 @@ def add_comment(
         user_id=current_user.id,
 
         text=text
-    )
 
+    )
 
     db.add(comment)
 
@@ -554,7 +538,44 @@ def add_comment(
     db.refresh(comment)
 
 
-    # Email notification can be added here.
+    # --------------------------------------------------------
+    # FIND POST OWNER
+    # --------------------------------------------------------
+
+    owner = db.query(User).filter(
+        User.id == post.author_id
+    ).first()
+
+
+    # --------------------------------------------------------
+    # SEND EMAIL NOTIFICATION
+    # --------------------------------------------------------
+
+    # Don't notify the owner if they commented
+    # on their own post.
+
+    if (
+        owner
+        and owner.email
+        and owner.id != current_user.id
+    ):
+
+        background_tasks.add_task(
+
+            notify_post_owner,
+
+            owner.email,
+
+            post.title,
+
+            current_user.username,
+
+            "comment",
+
+            comment.created_at
+
+        )
+
 
     return comment
 
@@ -572,12 +593,12 @@ def get_comments(
     post_id: int,
 
     db: Session = Depends(get_db)
+
 ):
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -586,19 +607,17 @@ def get_comments(
             detail="Post not found"
         )
 
-
     comments = db.query(Comment).filter(
         Comment.post_id == post_id
     ).order_by(
         Comment.created_at.desc()
     ).all()
 
-
     return comments
 
 
 # ============================================================
-# LIKE POST
+# LIKE POST + EMAIL NOTIFICATION
 # ============================================================
 
 @router.post(
@@ -609,15 +628,21 @@ def like_post(
 
     post_id: int,
 
+    background_tasks: BackgroundTasks,
+
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
+
+    # --------------------------------------------------------
+    # FIND POST
+    # --------------------------------------------------------
 
     post = db.query(Post).filter(
         Post.id == post_id
     ).first()
-
 
     if not post:
 
@@ -627,6 +652,10 @@ def like_post(
         )
 
 
+    # --------------------------------------------------------
+    # CHECK EXISTING LIKE
+    # --------------------------------------------------------
+
     existing_like = db.query(Like).filter(
 
         Like.post_id == post_id,
@@ -634,7 +663,6 @@ def like_post(
         Like.user_id == current_user.id
 
     ).first()
-
 
     if existing_like:
 
@@ -644,20 +672,63 @@ def like_post(
         )
 
 
+    # --------------------------------------------------------
+    # CREATE LIKE
+    # --------------------------------------------------------
+
     new_like = Like(
 
         post_id=post_id,
 
         user_id=current_user.id
-    )
 
+    )
 
     db.add(new_like)
 
     db.commit()
 
+    db.refresh(new_like)
 
-    # Email notification can be added here.
+
+    # --------------------------------------------------------
+    # FIND POST OWNER
+    # --------------------------------------------------------
+
+    owner = db.query(User).filter(
+        User.id == post.author_id
+    ).first()
+
+
+    # --------------------------------------------------------
+    # SEND EMAIL NOTIFICATION
+    # --------------------------------------------------------
+
+    # Don't notify the owner if they liked
+    # their own post.
+
+    if (
+        owner
+        and owner.email
+        and owner.id != current_user.id
+    ):
+
+        background_tasks.add_task(
+
+            notify_post_owner,
+
+            owner.email,
+
+            post.title,
+
+            current_user.username,
+
+            "like",
+
+            new_like.created_at
+
+        )
+
 
     return {
         "message": "Post liked successfully"
@@ -679,6 +750,7 @@ def unlike_post(
     db: Session = Depends(get_db),
 
     current_user: User = Depends(get_current_user)
+
 ):
 
     like = db.query(Like).filter(
@@ -689,7 +761,6 @@ def unlike_post(
 
     ).first()
 
-
     if not like:
 
         raise HTTPException(
@@ -697,11 +768,9 @@ def unlike_post(
             detail="You have not liked this post"
         )
 
-
     db.delete(like)
 
     db.commit()
-
 
     return {
         "message": "Post unliked successfully"
